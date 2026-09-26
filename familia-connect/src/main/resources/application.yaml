@@ -5,5 +5,8 @@ spring:
     host: localhost
     port: 5672
     username: ${RABBITMQ_USER}
-    password: ${RABBITMQ_PWD}
+    password: ${RABBITMQ_PASS}
     queue-name: ${RABBITMQ_QUEUE}
+    listener:
+      binding-name: ${RABBITMQ_BINDING}
+      exchange-name: ${RABBITMQ_EXCHANGE}
