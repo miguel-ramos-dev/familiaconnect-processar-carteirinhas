@@ -1,3 +1,9 @@
 spring:
   application:
     name: familia-connect
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PWD}
+    queue-name: ${RABBITMQ_QUEUE}
