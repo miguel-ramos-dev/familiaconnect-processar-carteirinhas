@@ -27,7 +27,7 @@ public class QueueCarteirinhasConsumer {
         log.info("({}) [onMessage] - Mensagem recebida da fila com sucesso!\n Iniciando processamento...", QueueCarteirinhasConsumer.class);
 
         Familia familiaEntity = familiaMapper.toEntity(familiaRequest);
-        log.info("({}) [onMessage] - Conversão realizada, cpfResponsavel={}", QueueCarteirinhasConsumer.class, familiaEntity.getCpfResponsavel());
+        log.info("({}) [onMessage] - Conversão bem-sucedida dos dados de entrada!", QueueCarteirinhasConsumer.class);
 
         carteirinhaUseCase.criarCarteirinha(familiaEntity);
     }
