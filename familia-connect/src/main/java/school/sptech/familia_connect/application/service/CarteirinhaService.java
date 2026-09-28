@@ -1,4 +1,4 @@
-package school.sptech.familia_connect.application.impl;
+package school.sptech.familia_connect.application.service;
 
 
 import lombok.AllArgsConstructor;
@@ -16,23 +16,24 @@ import java.util.HexFormat;
 
 @Service
 @AllArgsConstructor
-public class CarteirinhaImpl implements CarteirinhaUseCase {
+public class CarteirinhaService implements CarteirinhaUseCase {
 
-    private static final Logger log = LoggerFactory.getLogger(CarteirinhaImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(CarteirinhaService.class);
 
     public FamiliaPortOut familiaPortOut;
-
+    public QrCodeService qrCodeService;
 
     @Override
     public void criarCarteirinha(Familia familiaEntity) {
-        log.info("({}) [criarCarteirinha] - Iniciando processo de criação de carteirinha...", CarteirinhaImpl.class);
+        log.info("({}) [criarCarteirinha] - Iniciando processo de criação de carteirinha...", CarteirinhaService.class);
 
         String idCarteirinha = gerarIdCarteirinha(familiaEntity);
-        log.info("({}) [criarCarteirinha] - Identificador unico criado, idCarteirinha={}", CarteirinhaImpl.class, idCarteirinha);
+        log.info("({}) [criarCarteirinha] - Identificador unico criado, idCarteirinha={}", CarteirinhaService.class, idCarteirinha);
 
         updateIdCarteirinha(idCarteirinha, familiaEntity.getId());
-        log.info("({}) [criarCarteirinha] - Identificador atualizado na base com sucesso!", CarteirinhaImpl.class);
+        log.info("({}) [criarCarteirinha] - Identificador atualizado na base com sucesso!", CarteirinhaService.class);
 
+        qrCodeService.downloadAndSaveQrCode(idCarteirinha, "carteirinhas/" + idCarteirinha + ".png");
     }
 
     private void updateIdCarteirinha(String idCarteirinha, Integer idFamilia) {
@@ -41,7 +42,7 @@ public class CarteirinhaImpl implements CarteirinhaUseCase {
     }
 
     private String gerarIdCarteirinha(Familia familiaEntity) {
-        log.info("({}) [criarCarteirinha] - Gerando Identificador Unico da Carteirinha...", CarteirinhaImpl.class);
+        log.info("({}) [criarCarteirinha] - Gerando Identificador Unico da Carteirinha...", CarteirinhaService.class);
 
         String valorCombinado = String.join("|",
                 String.valueOf(familiaEntity.getId()),
