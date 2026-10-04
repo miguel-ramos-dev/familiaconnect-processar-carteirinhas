@@ -22,6 +22,9 @@ target/
 # Variáveis de Ambiente
 .env
 
+# Carteirinhas
+/carteirinhas
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

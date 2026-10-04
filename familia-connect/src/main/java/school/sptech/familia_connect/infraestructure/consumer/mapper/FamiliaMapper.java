@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-
 @Mapper(componentModel = "spring")
 public abstract class FamiliaMapper {
 
@@ -40,10 +39,8 @@ public abstract class FamiliaMapper {
             for(ConstraintViolation<FamiliaRequestDto> violation : violations) {
                 erros.put(violation.getPropertyPath().toString(), violation.getMessage());
             }
-
             throw new CamposInvalidosException("Falha na validacao dos dados da familia", erros);
         }
-
     }
 
 }

@@ -3,7 +3,6 @@ package school.sptech.familia_connect.application.service;
 import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 import school.sptech.familia_connect.infraestructure.web.client.CreateQrCodeClient;
 
 import java.io.IOException;
@@ -11,7 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-@Service
 @AllArgsConstructor
 public class QrCodeService {
 
@@ -39,6 +37,16 @@ public class QrCodeService {
             }
         } catch (IOException ex) {
             throw new RuntimeException("Erro ao salvar o arquivo localmente: " + ex.getMessage(), ex);        }
+    }
+
+    public void deleteQrCode(String filePath) {
+
+        try {
+            Files.deleteIfExists(Path.of(filePath));
+        } catch (IOException e) {
+            throw new RuntimeException("Erro ao deletar foto do qrcode", e);
+        }
+
     }
 
 }

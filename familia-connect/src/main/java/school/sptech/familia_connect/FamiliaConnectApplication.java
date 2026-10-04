@@ -6,6 +6,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication
 @EnableFeignClients
+@SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
 public class FamiliaConnectApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(FamiliaConnectApplication.class, args);
