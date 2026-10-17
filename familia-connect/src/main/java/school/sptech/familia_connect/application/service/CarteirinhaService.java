@@ -3,6 +3,10 @@ package school.sptech.familia_connect.application.service;
 
 import lombok.AllArgsConstructor;
 import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.multipdf.LayerUtility;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.util.Matrix;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -17,15 +21,13 @@ import school.sptech.familia_connect.domain.Familia;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
-import java.util.Date;
 import java.util.HexFormat;
 import java.util.Locale;
 
@@ -34,8 +36,27 @@ public class CarteirinhaService implements CarteirinhaUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(CarteirinhaService.class);
 
+    private static final String PASTA_CARTEIRINHAS = "carteirinhas";
+    private static final Object LOCK_PDF = new Object();
+
+    // em pontos PDF (72 pt = 1 polegada, ~2,83 pt = 1 mm)
+    private static final float ESPACO_ENTRE_CARTEIRINHAS = 15f;
+    private static final float MARGEM_FOLHA = 15f;
+
     public FamiliaPortOut familiaPortOut;
     public QrCodeService qrCodeService;
+    public LoteService loteService;
+
+    /** Quantas carteirinhas cabem por folha. */
+    private record Grade(int colunas, int linhas) {
+        int capacidade() {
+            return colunas * linhas;
+        }
+    }
+
+    /** Posicao (canto inferior esquerdo) de uma carteirinha na folha. */
+    private record Posicao(float x, float y) {
+    }
 
     @Override
     public void criarCarteirinha(Familia familiaEntity) {
@@ -44,6 +65,7 @@ public class CarteirinhaService implements CarteirinhaUseCase {
         String idCarteirinha = gerarIdCarteirinha(familiaEntity);
         log.info("({}) [criarCarteirinha] - Identificador unico criado, idCarteirinha={}", CarteirinhaService.class, idCarteirinha);
 
+        //validar se for nulo so loga e segue o fluxo
         updateIdCarteirinha(idCarteirinha, familiaEntity.getId());
         log.info("({}) [criarCarteirinha] - Identificador atualizado na base com sucesso!", CarteirinhaService.class);
 
@@ -81,52 +103,121 @@ public class CarteirinhaService implements CarteirinhaUseCase {
         }
     }
 
+    // Orquestra: escolhe o lote, calcula a posicao, desenha e salva.
     private void gerarCarteirinhaPdf(Familia familiaEntity, String pathTemplateCarteirinha, String caminhoQrCode) {
 
-        String[] palavrasNomeResponsavel = familiaEntity.getNomeResponsavel().split(" ");
-        String nomeFamilia = palavrasNomeResponsavel[palavrasNomeResponsavel.length-1];
+        synchronized (LOCK_PDF) {
+            try (PDDocument template = Loader.loadPDF(new File(pathTemplateCarteirinha))) {
 
-        //carrega documento
-        try(PDDocument document = Loader.loadPDF(new File(pathTemplateCarteirinha))) {
+                PDRectangle medidaCard = template.getPage(0).getMediaBox();
+                Grade grade = calcularGrade(medidaCard);
 
-            //pega primeira pagina
-            PDPage page = document.getPage(0);
+                File pasta = new File(PASTA_CARTEIRINHAS);
+                File destino = loteService.obterPdfComEspaco(pasta, grade.capacidade());
 
-            //abre fluxo para inserir os textos de forma dinamica
-            try (PDPageContentStream contentStream = new PDPageContentStream(
-                    document, page, PDPageContentStream.AppendMode.APPEND, true, true
-            )) {
+                try (PDDocument lote = loteService.abrirOuCriarLote(destino)) {
+                    int usados = loteService.lerSlots(lote);
+                    Posicao posicao = calcularPosicao(usados, grade, medidaCard);
 
-                //Familia
-                insertDataInDocument(contentStream, 7, 103, 92, nomeFamilia);
+                    desenharCarteirinha(lote, template, posicao, familiaEntity, caminhoQrCode);
 
-                // Responsável
-                insertDataInDocument(contentStream, 7, 168, 92, familiaEntity.getNomeResponsavel());
-
-                // CPF do Responsável
-                insertDataInDocument(contentStream, 7, 103, 55, familiaEntity.getCpfResponsavel());
-
-                // Telefone
-                insertDataInDocument(contentStream, 7, 168, 55, familiaEntity.getTelefone());
-
-                // Data
-                DateTimeFormatter formatter = DateTimeFormatter
-                        .ofLocalizedDate(FormatStyle.LONG)
-                        .withLocale(Locale.of("pt", "BR"));
-                insertDataInDocument(contentStream, 5, 183, 20, LocalDate.now().format(formatter));
-
-
-                PDImageXObject qrCodeImage = PDImageXObject.createFromFile(caminhoQrCode, document);
-                contentStream.drawImage(qrCodeImage, 304, 28, 120, 120);
-
+                    salvarLote(lote, destino, usados + 1);
+                    log.info("({}) [gerarCarteirinhaPdf] - Carteirinha inserida em {} (slot {}/{})",
+                            CarteirinhaService.class, destino.getName(), usados + 1, grade.capacidade());
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Erro ao manipular o PDF da carteirinha: " + e.getMessage(), e);
             }
-
-            document.save(String.format("carteirinhas/familia-%s.pdf", nomeFamilia));
-
-        } catch (IOException e) {
-            throw new RuntimeException("Erro ao manipular o PDF da carteirinha: " + e.getMessage(), e);
         }
     }
+
+    private Grade calcularGrade(PDRectangle medidaCard) {
+        float larguraUtil = PDRectangle.A4.getWidth() - 2 * MARGEM_FOLHA;
+        float alturaUtil = PDRectangle.A4.getHeight() - 2 * MARGEM_FOLHA;
+
+        int colunas = Math.max(1, (int) ((larguraUtil + ESPACO_ENTRE_CARTEIRINHAS)
+                / (medidaCard.getWidth() + ESPACO_ENTRE_CARTEIRINHAS)));
+        int linhas = Math.max(1, (int) ((alturaUtil + ESPACO_ENTRE_CARTEIRINHAS)
+                / (medidaCard.getHeight() + ESPACO_ENTRE_CARTEIRINHAS)));
+        return new Grade(colunas, linhas);
+    }
+
+    // centraliza a grade na horizontal; linhas preenchidas de cima para baixo, com espaco entre elas
+    private Posicao calcularPosicao(int slot, Grade grade, PDRectangle medidaCard) {
+        int coluna = slot % grade.colunas();
+        int linha = slot / grade.colunas();
+
+        float larguraGrade = grade.colunas() * medidaCard.getWidth()
+                + (grade.colunas() - 1) * ESPACO_ENTRE_CARTEIRINHAS;
+        float margemX = (PDRectangle.A4.getWidth() - larguraGrade) / 2;
+
+        float x = margemX + coluna * (medidaCard.getWidth() + ESPACO_ENTRE_CARTEIRINHAS);
+        float y = PDRectangle.A4.getHeight() - MARGEM_FOLHA
+                - (linha + 1) * medidaCard.getHeight()
+                - linha * ESPACO_ENTRE_CARTEIRINHAS;
+        return new Posicao(x, y);
+    }
+
+    private void desenharCarteirinha(PDDocument lote,
+                                     PDDocument template,
+                                     Posicao posicao,
+                                     Familia familiaEntity,
+                                     String caminhoQrCode) throws IOException {
+
+        // importa a pagina do template como "molde" desenhavel
+        PDFormXObject molde = new LayerUtility(lote).importPageAsForm(template, 0);
+
+        try (PDPageContentStream contentStream = new PDPageContentStream(
+                lote, lote.getPage(0), PDPageContentStream.AppendMode.APPEND, true, true
+        )) {
+            // move a origem para o slot; dai pra frente usa as coordenadas originais do template
+            contentStream.saveGraphicsState();
+            contentStream.transform(Matrix.getTranslateInstance(posicao.x(), posicao.y()));
+
+            contentStream.drawForm(molde);
+            inserirDadosFamilia(contentStream, familiaEntity);
+            inserirQrCode(contentStream, lote, caminhoQrCode);
+
+            contentStream.restoreGraphicsState();
+        }
+    }
+
+    private void inserirDadosFamilia(PDPageContentStream contentStream, Familia familiaEntity) throws IOException {
+        //Familia
+        insertDataInDocument(contentStream, 7, 104, 85, extrairNomeFamilia(familiaEntity));
+
+        // Responsável
+        insertDataInDocument(contentStream, 7, 170, 85, familiaEntity.getNomeResponsavel());
+
+        // CPF do Responsável
+        insertDataInDocument(contentStream, 7, 104, 48, familiaEntity.getCpfResponsavel());
+
+        // Telefone
+        insertDataInDocument(contentStream, 7, 170, 48, familiaEntity.getTelefone());
+
+        // Data
+        DateTimeFormatter formatter = DateTimeFormatter
+                .ofLocalizedDate(FormatStyle.LONG)
+                .withLocale(Locale.of("pt", "BR"));
+        insertDataInDocument(contentStream, 5, 183, 15, LocalDate.now().format(formatter));
+    }
+
+    private void inserirQrCode(PDPageContentStream contentStream, PDDocument lote, String caminhoQrCode) throws IOException {
+        PDImageXObject qrCodeImage = PDImageXObject.createFromFile(caminhoQrCode, lote);
+        contentStream.drawImage(qrCodeImage, 304, 20, 120, 120);
+    }
+
+    private String extrairNomeFamilia(Familia familiaEntity) {
+        String[] palavras = familiaEntity.getNomeResponsavel().split(" ");
+        return palavras[palavras.length - 1];
+    }
+
+    private void salvarLote(PDDocument lote, File destino, int slotsUsados) throws IOException {
+        loteService.gravarSlots(lote, slotsUsados);
+        Files.createDirectories(destino.toPath().getParent());
+        lote.save(destino);
+    }
+
 
     private void insertDataInDocument(PDPageContentStream contentStream,
                                       int fontSize,
