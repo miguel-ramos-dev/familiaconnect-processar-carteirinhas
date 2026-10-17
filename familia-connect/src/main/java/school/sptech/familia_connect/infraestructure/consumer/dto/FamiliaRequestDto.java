@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 public record FamiliaRequestDto(
 
         @NotNull(message = "O campo idFamilia não pode ser nulo")
-        Integer id,
+        Integer idFamilia,
 
         @NotBlank(message = "O campo nomeResponsavel não pode ser nulo")
         String nomeResponsavel,

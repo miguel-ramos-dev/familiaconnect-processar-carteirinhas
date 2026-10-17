@@ -66,7 +66,7 @@ public class CarteirinhaService implements CarteirinhaUseCase {
         log.info("({}) [criarCarteirinha] - Identificador unico criado, idCarteirinha={}", CarteirinhaService.class, idCarteirinha);
 
         //validar se for nulo so loga e segue o fluxo
-        updateIdCarteirinha(idCarteirinha, familiaEntity.getId());
+        updateIdCarteirinha(idCarteirinha, familiaEntity.getIdFamilia());
         log.info("({}) [criarCarteirinha] - Identificador atualizado na base com sucesso!", CarteirinhaService.class);
 
         String filePathQrCode = String.format("carteirinhas/%s.png",idCarteirinha);
@@ -80,14 +80,17 @@ public class CarteirinhaService implements CarteirinhaUseCase {
 
     private void updateIdCarteirinha(String idCarteirinha, Integer idFamilia) {
         int idIsUpdated = familiaPortOut.updateIdCarteirinhaById(idCarteirinha, idFamilia);
-        if(idIsUpdated <=0) throw new RuntimeException("Erro ao atualizar id da carteirinha no banco de dados");
+        if(idIsUpdated <=0) {
+            log.error("({}) [updateIdCarteirinha] - Nenhuma linha atualizada em familia, idFamilia={}", CarteirinhaService.class, idFamilia);
+            throw new RuntimeException("Erro ao atualizar idFamilia da carteirinha no banco de dados");
+        }
     }
 
     private String gerarIdCarteirinha(Familia familiaEntity) {
         log.info("({}) [criarCarteirinha] - Gerando Identificador Unico da Carteirinha...", CarteirinhaService.class);
 
         String valorCombinado = String.join("|",
-                String.valueOf(familiaEntity.getId()),
+                String.valueOf(familiaEntity.getIdFamilia()),
                 familiaEntity.getCpfResponsavel().toLowerCase().trim(),
                 familiaEntity.getTelefone().toLowerCase().trim(),
                 familiaEntity.getNomeResponsavel().toLowerCase().trim()
@@ -112,7 +115,8 @@ public class CarteirinhaService implements CarteirinhaUseCase {
                 PDRectangle medidaCard = template.getPage(0).getMediaBox();
                 Grade grade = calcularGrade(medidaCard);
 
-                File pasta = new File(PASTA_CARTEIRINHAS);
+                // uma pasta por dia: a contagem de lotes reinicia a cada data
+                File pasta = new File(PASTA_CARTEIRINHAS, LocalDate.now().toString());
                 File destino = loteService.obterPdfComEspaco(pasta, grade.capacidade());
 
                 try (PDDocument lote = loteService.abrirOuCriarLote(destino)) {

@@ -12,7 +12,7 @@ public class FamiliaJdbcRepository implements FamiliaPortOut {
     public final JdbcTemplate jdbcTemplate;
 
     public int updateIdCarteirinhaById(String idCarteirinha, Integer id) {
-        String sql = "UPDATE familia SET idCarteirinha = ? WHERE id = ? AND id_carteirinha IS NULL";
+        String sql = "UPDATE familia SET id_carteirinha = ? WHERE id = ?";
 
         return jdbcTemplate.update(sql, idCarteirinha, id);
     }

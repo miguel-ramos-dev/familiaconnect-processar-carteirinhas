@@ -2,7 +2,7 @@ package school.sptech.familia_connect.domain;
 
 public class Familia {
 
-    private Integer id;
+    private Integer idFamilia;
     private String nomeResponsavel;
     private String cpfResponsavel;
     private String telefone;
@@ -10,19 +10,19 @@ public class Familia {
     public Familia() {
     }
 
-    public Familia(Integer id, String nomeResponsavel, String cpfResponsavel, String telefone) {
-        this.id = id;
+    public Familia(Integer idFamilia, String nomeResponsavel, String cpfResponsavel, String telefone) {
+        this.idFamilia = idFamilia;
         this.nomeResponsavel = nomeResponsavel;
         this.cpfResponsavel = cpfResponsavel;
         this.telefone = telefone;
     }
 
-    public Integer getId() {
-        return id;
+    public Integer getIdFamilia() {
+        return idFamilia;
     }
 
-    public void setId(Integer id) {
-        this.id = id;
+    public void setIdFamilia(Integer id) {
+        this.idFamilia = id;
     }
 
     public String getNomeResponsavel() {
