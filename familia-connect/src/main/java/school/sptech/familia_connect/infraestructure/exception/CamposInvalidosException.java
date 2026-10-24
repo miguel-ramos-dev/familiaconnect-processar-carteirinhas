@@ -1,8 +1,11 @@
 package school.sptech.familia_connect.infraestructure.exception;
 
+import lombok.Getter;
+
 import java.util.Map;
 
-public class CamposInvalidosException extends RuntimeException {
+@Getter
+public class CamposInvalidosException extends GlobalModelException {
 
     private final Map<String, String> erros;
 
@@ -11,7 +14,4 @@ public class CamposInvalidosException extends RuntimeException {
         this.erros = erros;
     }
 
-    public Map<String, String> getErros() {
-        return erros;
-    }
 }

@@ -18,6 +18,8 @@ import org.slf4j.LoggerFactory;
 import school.sptech.familia_connect.application.port.in.CarteirinhaUseCase;
 import school.sptech.familia_connect.application.port.out.FamiliaPortOut;
 import school.sptech.familia_connect.domain.Familia;
+import school.sptech.familia_connect.infraestructure.exception.ErrorEnum;
+import school.sptech.familia_connect.infraestructure.exception.GlobalModelException;
 
 import java.io.File;
 import java.io.IOException;
@@ -60,34 +62,37 @@ public class CarteirinhaService implements CarteirinhaUseCase {
 
     @Override
     public void criarCarteirinha(Familia familiaEntity) {
-        log.info("({}) [criarCarteirinha] - Iniciando processo de criação de carteirinha...", CarteirinhaService.class);
+        log.info("[criarCarteirinha] - Iniciando processo de criação de carteirinha...");
+
+        if (!familiaPortOut.existsById(familiaEntity.getIdFamilia())) {
+            log.error("[findByIdFamilia] - Familia com id fornecido nao encontrado na base de dados, idFamilia={}", familiaEntity.getIdFamilia());
+            throw new GlobalModelException();
+        }
 
         String idCarteirinha = gerarIdCarteirinha(familiaEntity);
-        log.info("({}) [criarCarteirinha] - Identificador unico criado, idCarteirinha={}", CarteirinhaService.class, idCarteirinha);
-
-        //validar se for nulo so loga e segue o fluxo
-        updateIdCarteirinha(idCarteirinha, familiaEntity.getIdFamilia());
-        log.info("({}) [criarCarteirinha] - Identificador atualizado na base com sucesso!", CarteirinhaService.class);
+        log.info("[criarCarteirinha] - Identificador unico criado, idCarteirinha={}", idCarteirinha);
 
         String filePathQrCode = String.format("carteirinhas/%s.png",idCarteirinha);
-
         qrCodeService.downloadAndSaveQrCode(idCarteirinha, filePathQrCode);
 
         gerarCarteirinhaPdf(familiaEntity, "carteirinhas/example/carteirinha-example.pdf" , filePathQrCode);
 
         qrCodeService.deleteQrCode(filePathQrCode);
+
+        updateIdCarteirinha(idCarteirinha, familiaEntity.getIdFamilia());
+        log.info("[criarCarteirinha] - Identificador atualizado na base com sucesso!");
     }
 
     private void updateIdCarteirinha(String idCarteirinha, Integer idFamilia) {
         int idIsUpdated = familiaPortOut.updateIdCarteirinhaById(idCarteirinha, idFamilia);
         if(idIsUpdated <=0) {
-            log.error("({}) [updateIdCarteirinha] - Nenhuma linha atualizada em familia, idFamilia={}", CarteirinhaService.class, idFamilia);
-            throw new RuntimeException("Erro ao atualizar idFamilia da carteirinha no banco de dados");
+            log.error("[updateIdCarteirinha] - Nenhuma linha atualizada em familia, idFamilia={}", idFamilia);
+            throw new GlobalModelException();
         }
     }
 
     private String gerarIdCarteirinha(Familia familiaEntity) {
-        log.info("({}) [criarCarteirinha] - Gerando Identificador Unico da Carteirinha...", CarteirinhaService.class);
+        log.info("[criarCarteirinha] - Gerando Identificador Unico da Carteirinha...");
 
         String valorCombinado = String.join("|",
                 String.valueOf(familiaEntity.getIdFamilia()),
@@ -102,7 +107,8 @@ public class CarteirinhaService implements CarteirinhaUseCase {
 
             return HexFormat.of().formatHex(hashBytes);
         } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("Erro ao carregar algoritmo de criptografia SHA-256");
+            log.error("[gerarIdCarteirinha] Erro ao carregar algoritmo de criptografia SHA-256");
+            throw new GlobalModelException();
         }
     }
 
@@ -126,11 +132,12 @@ public class CarteirinhaService implements CarteirinhaUseCase {
                     desenharCarteirinha(lote, template, posicao, familiaEntity, caminhoQrCode);
 
                     salvarLote(lote, destino, usados + 1);
-                    log.info("({}) [gerarCarteirinhaPdf] - Carteirinha inserida em {} (slot {}/{})",
-                            CarteirinhaService.class, destino.getName(), usados + 1, grade.capacidade());
+                    log.info("[gerarCarteirinhaPdf] - Carteirinha inserida em {} (slot {}/{})",
+                            destino.getName(), usados + 1, grade.capacidade());
                 }
             } catch (IOException e) {
-                throw new RuntimeException("Erro ao manipular o PDF da carteirinha: " + e.getMessage(), e);
+                log.error("[gerarCarteirinhaPdf] Erro ao gerar pdf da carteirinha, causa ={}", e.getMessage());
+                throw new GlobalModelException();
             }
         }
     }

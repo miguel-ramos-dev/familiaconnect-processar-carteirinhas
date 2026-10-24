@@ -14,7 +14,7 @@ spring:
     show-sql: true
     open-in-view: false
   rabbitmq:
-    host: localhost
+    host: ${RABBITMQ_HOST:localhost}
     port: 5672
     username: ${RABBITMQ_USER}
     password: ${RABBITMQ_PASS}
@@ -22,3 +22,6 @@ spring:
     listener:
       binding-name: ${RABBITMQ_BINDING}
       exchange-name: ${RABBITMQ_EXCHANGE}
+    producer:
+      queue-name: ${RABBITMQ_QUEUE_RESPOSTA}
+      routing-name: ${RABBITMQ_ROUTING_RESPOSTA}

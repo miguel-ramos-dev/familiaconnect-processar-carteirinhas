@@ -17,4 +17,12 @@ public class FamiliaJdbcRepository implements FamiliaPortOut {
         return jdbcTemplate.update(sql, idCarteirinha, id);
     }
 
+    public boolean existsById(Integer idFamilia) {
+        Integer familia = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM familia WHERE id = ?",
+                Integer.class, idFamilia);
+
+        return idFamilia != null && familia > 0;
+    }
+
 }

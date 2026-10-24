@@ -3,6 +3,7 @@ package school.sptech.familia_connect.application.service;
 import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import school.sptech.familia_connect.infraestructure.exception.GlobalModelException;
 import school.sptech.familia_connect.infraestructure.web.client.CreateQrCodeClient;
 
 import java.io.IOException;
@@ -33,10 +34,13 @@ public class QrCodeService {
 
                 Files.write(path, imageBytes);
                 log.info("({}) [downloadAndSaveQrCode] - Carteirinhas salva em pasta local /carteirinhas", QrCodeService.class);
-
+            } else {
+                throw new GlobalModelException();
             }
         } catch (IOException ex) {
-            throw new RuntimeException("Erro ao salvar o arquivo localmente: " + ex.getMessage(), ex);        }
+            log.error("[downloadAndSaveQrCode] Erro ao salvar o arquivo localmente");
+            throw new GlobalModelException();
+        }
     }
 
     public void deleteQrCode(String filePath) {
@@ -44,7 +48,8 @@ public class QrCodeService {
         try {
             Files.deleteIfExists(Path.of(filePath));
         } catch (IOException e) {
-            throw new RuntimeException("Erro ao deletar foto do qrcode", e);
+            log.error("[downloadAndSaveQrCode] Erro ao deletar foto do qrcode causa = {}", e.getMessage());
+            throw new GlobalModelException();
         }
 
     }
