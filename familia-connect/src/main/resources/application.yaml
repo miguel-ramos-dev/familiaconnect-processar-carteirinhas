@@ -25,3 +25,12 @@ spring:
     producer:
       queue-name: ${RABBITMQ_QUEUE_RESPOSTA}
       routing-name: ${RABBITMQ_ROUTING_RESPOSTA}
+
+app:
+  storage:
+    # true = salva o PDF do lote de carteirinhas localmente; false = salva em um bucket S3 da AWS
+    # (o QR Code e sempre local, pois e temporario e removido logo apos a geracao da carteirinha)
+    local-enabled: ${STORAGE_LOCAL_ENABLED:true}
+    s3:
+      bucket: ${AWS_S3_BUCKET:}
+      region: ${AWS_REGION:us-east-1}

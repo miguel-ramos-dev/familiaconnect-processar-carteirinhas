@@ -23,7 +23,6 @@ import school.sptech.familia_connect.infraestructure.exception.GlobalModelExcept
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -122,8 +121,8 @@ public class CarteirinhaService implements CarteirinhaUseCase {
                 Grade grade = calcularGrade(medidaCard);
 
                 // uma pasta por dia: a contagem de lotes reinicia a cada data
-                File pasta = new File(PASTA_CARTEIRINHAS, LocalDate.now().toString());
-                File destino = loteService.obterPdfComEspaco(pasta, grade.capacidade());
+                String pasta = PASTA_CARTEIRINHAS + "/" + LocalDate.now();
+                String destino = loteService.obterCaminhoLoteComEspaco(pasta, grade.capacidade());
 
                 try (PDDocument lote = loteService.abrirOuCriarLote(destino)) {
                     int usados = loteService.lerSlots(lote);
@@ -131,9 +130,9 @@ public class CarteirinhaService implements CarteirinhaUseCase {
 
                     desenharCarteirinha(lote, template, posicao, familiaEntity, caminhoQrCode);
 
-                    salvarLote(lote, destino, usados + 1);
+                    loteService.salvarLote(lote, destino, usados + 1);
                     log.info("[gerarCarteirinhaPdf] - Carteirinha inserida em {} (slot {}/{})",
-                            destino.getName(), usados + 1, grade.capacidade());
+                            destino, usados + 1, grade.capacidade());
                 }
             } catch (IOException e) {
                 log.error("[gerarCarteirinhaPdf] Erro ao gerar pdf da carteirinha, causa ={}", e.getMessage());
@@ -222,13 +221,6 @@ public class CarteirinhaService implements CarteirinhaUseCase {
         String[] palavras = familiaEntity.getNomeResponsavel().split(" ");
         return palavras[palavras.length - 1];
     }
-
-    private void salvarLote(PDDocument lote, File destino, int slotsUsados) throws IOException {
-        loteService.gravarSlots(lote, slotsUsados);
-        Files.createDirectories(destino.toPath().getParent());
-        lote.save(destino);
-    }
-
 
     private void insertDataInDocument(PDPageContentStream contentStream,
                                       int fontSize,

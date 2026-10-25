@@ -10,4 +10,5 @@ import lombok.NoArgsConstructor;
 public class QueueRespostaDto{
     private String status;
     private String message;
+    private String nomeResponsavel;
 }
