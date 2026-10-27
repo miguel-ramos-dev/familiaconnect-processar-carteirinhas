@@ -1,3 +1,6 @@
+/carteirinhas/*
+!/carteirinhas/example/
+
 HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
@@ -23,11 +26,11 @@ target/
 .env
 
 ### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
+/familia-connect/nbproject/private/
+/familia-connect/nbbuild/
+/familia-connect/dist/
+/familia-connect/nbdist/
+/familia-connect/.nb-gradle/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
