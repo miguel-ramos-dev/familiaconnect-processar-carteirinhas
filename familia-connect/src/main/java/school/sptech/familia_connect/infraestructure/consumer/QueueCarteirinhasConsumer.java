@@ -29,7 +29,7 @@ public class QueueCarteirinhasConsumer {
             messageConverter = "messageConverter"
     )
     public void onMessage(@Header(value = "correlationIdRedis", required = false) String correlationIdRedis, FamiliaRequestDto familiaRequest) {
-        QueueRespostaDto queueRespostaDto = new QueueRespostaDto("SUCESSO", "Carteirinha da familia gerada com sucesso!");
+        QueueRespostaDto queueRespostaDto = new QueueRespostaDto("SUCESSO", "Carteirinha da familia gerada com sucesso!", familiaRequest.nomeResponsavel());
         log.info("[onMessage] - Mensagem recebida da fila com sucesso!\n Iniciando processamento...");
 
         if(correlationIdRedis == null || correlationIdRedis.isBlank()) {

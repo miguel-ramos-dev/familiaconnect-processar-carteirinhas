@@ -11,6 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+// O QrCode e um arquivo temporario (gerado e apagado no mesmo fluxo), por isso sempre fica no disco local,
+// independente da configuracao de storage usada para a carteirinha final (app.storage.local-enabled).
 @AllArgsConstructor
 public class QrCodeService {
 
