@@ -25,4 +25,12 @@ public class FamiliaJdbcRepository implements FamiliaPortOut {
         return idFamilia != null && familia > 0;
     }
 
+    public int countMembrosByIdFamilia(Integer idFamilia) {
+        Integer total = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pessoa WHERE familia_id = ?",
+                Integer.class, idFamilia);
+
+        return total == null ? 0 : total;
+    }
+
 }

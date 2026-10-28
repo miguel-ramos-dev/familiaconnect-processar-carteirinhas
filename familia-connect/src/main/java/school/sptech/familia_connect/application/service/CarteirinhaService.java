@@ -10,8 +10,8 @@ import org.apache.pdfbox.util.Matrix;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,8 +21,10 @@ import school.sptech.familia_connect.domain.Familia;
 import school.sptech.familia_connect.infraestructure.exception.ErrorEnum;
 import school.sptech.familia_connect.infraestructure.exception.GlobalModelException;
 
+import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -39,6 +41,16 @@ public class CarteirinhaService implements CarteirinhaUseCase {
 
     private static final String PASTA_CARTEIRINHAS = "carteirinhas";
     private static final Object LOCK_PDF = new Object();
+
+    private static final Color COR_AZUL = new Color(0x1E, 0x47, 0x90);
+    private static final Color COR_TEXTO = new Color(0x11, 0x11, 0x11);
+    private static final float X_FIM_DATA = 224f;
+
+    // area branca do QR code no template e folga entre ela e o QR
+    private static final float QR_AREA_X = 301f;
+    private static final float QR_AREA_Y = 17f;
+    private static final float QR_AREA_TAMANHO = 128f;
+    private static final float QR_MARGEM = 14f;
 
     // em pontos PDF (72 pt = 1 polegada, ~2,83 pt = 1 mm)
     private static final float ESPACO_ENTRE_CARTEIRINHAS = 15f;
@@ -68,13 +80,15 @@ public class CarteirinhaService implements CarteirinhaUseCase {
             throw new GlobalModelException();
         }
 
+        familiaEntity.setQuantidadeMembros(familiaPortOut.countMembrosByIdFamilia(familiaEntity.getIdFamilia()));
+
         String idCarteirinha = gerarIdCarteirinha(familiaEntity);
         log.info("[criarCarteirinha] - Identificador unico criado, idCarteirinha={}", idCarteirinha);
 
         String filePathQrCode = String.format("carteirinhas/%s.png",idCarteirinha);
         qrCodeService.downloadAndSaveQrCode(idCarteirinha, filePathQrCode);
 
-        gerarCarteirinhaPdf(familiaEntity, "carteirinhas/example/carteirinha-example.pdf" , filePathQrCode);
+        gerarCarteirinhaPdf(familiaEntity, "carteirinhas/example/carteirinha-example.pdf", filePathQrCode);
 
         qrCodeService.deleteQrCode(filePathQrCode);
 
@@ -168,6 +182,18 @@ public class CarteirinhaService implements CarteirinhaUseCase {
         return new Posicao(x, y);
     }
 
+    private record Fontes(PDFont medium, PDFont semiBold) {
+    }
+
+    private PDFont carregarFonte(PDDocument doc, String nome) throws IOException {
+        try (InputStream in = getClass().getResourceAsStream("/fonts/" + nome)) {
+            if (in == null) {
+                throw new IOException("Fonte nao encontrada: " + nome);
+            }
+            return PDType0Font.load(doc, in);
+        }
+    }
+
     private void desenharCarteirinha(PDDocument lote,
                                      PDDocument template,
                                      Posicao posicao,
@@ -184,37 +210,63 @@ public class CarteirinhaService implements CarteirinhaUseCase {
             contentStream.saveGraphicsState();
             contentStream.transform(Matrix.getTranslateInstance(posicao.x(), posicao.y()));
 
+            Fontes fontes = new Fontes(carregarFonte(lote, "Poppins-Medium.ttf"), carregarFonte(lote, "Poppins-SemiBold.ttf"));
+
             contentStream.drawForm(molde);
-            inserirDadosFamilia(contentStream, familiaEntity);
+            inserirDadosFamilia(contentStream, fontes, familiaEntity);
             inserirQrCode(contentStream, lote, caminhoQrCode);
 
             contentStream.restoreGraphicsState();
         }
     }
 
-    private void inserirDadosFamilia(PDPageContentStream contentStream, Familia familiaEntity) throws IOException {
-        //Familia
-        insertDataInDocument(contentStream, 7, 104, 85, extrairNomeFamilia(familiaEntity));
+    private void inserirDadosFamilia(PDPageContentStream contentStream, Fontes fontes, Familia familiaEntity) throws IOException {
+        // Data de emissao, alinhada a direita
+        String dataEmissao = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        float larguraData = fontes.semiBold().getStringWidth(dataEmissao) / 1000 * 8;
+        insertDataInDocument(contentStream, fontes.semiBold(), 8, COR_AZUL, X_FIM_DATA - larguraData, 140, dataEmissao);
 
-        // Responsável
-        insertDataInDocument(contentStream, 7, 170, 85, familiaEntity.getNomeResponsavel());
+        // Familia
+        insertDataInDocument(contentStream, fontes.semiBold(), 18, COR_AZUL, 13, 103,
+                "Família " + extrairNomeFamilia(familiaEntity));
 
-        // CPF do Responsável
-        insertDataInDocument(contentStream, 7, 104, 48, familiaEntity.getCpfResponsavel());
+        inserirBadgeMembros(contentStream, fontes, familiaEntity.getQuantidadeMembros());
 
-        // Telefone
-        insertDataInDocument(contentStream, 7, 170, 48, familiaEntity.getTelefone());
+        // Responsável, CPF e Telefone
+        insertDataInDocument(contentStream, fontes.medium(), 7.5f, COR_TEXTO, 13, 61, familiaEntity.getNomeResponsavel());
+        insertDataInDocument(contentStream, fontes.medium(), 7.5f, COR_TEXTO, 93, 61, familiaEntity.getCpfResponsavel());
+        insertDataInDocument(contentStream, fontes.medium(), 7.5f, COR_TEXTO, 172, 61, familiaEntity.getTelefone());
+    }
 
-        // Data
-        DateTimeFormatter formatter = DateTimeFormatter
-                .ofLocalizedDate(FormatStyle.LONG)
-                .withLocale(Locale.of("pt", "BR"));
-        insertDataInDocument(contentStream, 5, 183, 15, LocalDate.now().format(formatter));
+    private void inserirBadgeMembros(PDPageContentStream contentStream, Fontes fontes, Integer quantidade) throws IOException {
+        int total = quantidade == null ? 0 : quantidade;
+        String texto = total + (total == 1 ? " membro" : " membros");
+
+        float largura = fontes.semiBold().getStringWidth(texto) / 1000 * 6 + 2 * 9;
+        float altura = 10.3f;
+        float x = 13;
+        float y = 85;
+
+        // retangulo com cantos totalmente arredondados (pilula)
+        float raio = altura / 2;
+        float k = 0.5523f * raio;
+        contentStream.setNonStrokingColor(COR_AZUL);
+        contentStream.moveTo(x + raio, y);
+        contentStream.lineTo(x + largura - raio, y);
+        contentStream.curveTo(x + largura - raio + k, y, x + largura, y + raio - k, x + largura, y + raio);
+        contentStream.curveTo(x + largura, y + raio + k, x + largura - raio + k, y + altura, x + largura - raio, y + altura);
+        contentStream.lineTo(x + raio, y + altura);
+        contentStream.curveTo(x + raio - k, y + altura, x, y + raio + k, x, y + raio);
+        contentStream.curveTo(x, y + raio - k, x + raio - k, y, x + raio, y);
+        contentStream.fill();
+
+        insertDataInDocument(contentStream, fontes.semiBold(), 6, Color.WHITE, x + 9, y + 3.5f, texto);
     }
 
     private void inserirQrCode(PDPageContentStream contentStream, PDDocument lote, String caminhoQrCode) throws IOException {
         PDImageXObject qrCodeImage = PDImageXObject.createFromFile(caminhoQrCode, lote);
-        contentStream.drawImage(qrCodeImage, 304, 20, 120, 120);
+        contentStream.drawImage(qrCodeImage, QR_AREA_X + QR_MARGEM, QR_AREA_Y + QR_MARGEM,
+                QR_AREA_TAMANHO - 2 * QR_MARGEM, QR_AREA_TAMANHO - 2 * QR_MARGEM);
     }
 
     private String extrairNomeFamilia(Familia familiaEntity) {
@@ -223,19 +275,19 @@ public class CarteirinhaService implements CarteirinhaUseCase {
     }
 
     private void insertDataInDocument(PDPageContentStream contentStream,
-                                      int fontSize,
-                                      int tx,
-                                      int ty,
+                                      PDFont font,
+                                      float fontSize,
+                                      Color cor,
+                                      float tx,
+                                      float ty,
                                       String data
     ) throws IOException {
-        PDType1Font fontRegular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-
         contentStream.beginText();
-        contentStream.setFont(fontRegular, fontSize);
+        contentStream.setNonStrokingColor(cor);
+        contentStream.setFont(font, fontSize);
         contentStream.newLineAtOffset(tx, ty);
         contentStream.showText(data);
         contentStream.endText();
     }
-
 
 }

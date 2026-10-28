@@ -6,6 +6,7 @@ public class Familia {
     private String nomeResponsavel;
     private String cpfResponsavel;
     private String telefone;
+    private Integer quantidadeMembros;
 
     public Familia() {
     }
@@ -47,5 +48,13 @@ public class Familia {
 
     public void setTelefone(String telefone) {
         this.telefone = telefone;
+    }
+
+    public Integer getQuantidadeMembros() {
+        return quantidadeMembros;
+    }
+
+    public void setQuantidadeMembros(Integer quantidadeMembros) {
+        this.quantidadeMembros = quantidadeMembros;
     }
 }
