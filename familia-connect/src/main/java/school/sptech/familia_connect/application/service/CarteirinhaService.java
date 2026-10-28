@@ -233,9 +233,29 @@ public class CarteirinhaService implements CarteirinhaUseCase {
         inserirBadgeMembros(contentStream, fontes, familiaEntity.getQuantidadeMembros());
 
         // Responsável, CPF e Telefone
-        insertDataInDocument(contentStream, fontes.medium(), 7.5f, COR_TEXTO, 13, 61, familiaEntity.getNomeResponsavel());
+        float y = 61;
+        for (String linha : quebrarTexto(fontes.medium(), 7.5f, 74, familiaEntity.getNomeResponsavel())) {
+            insertDataInDocument(contentStream, fontes.medium(), 7.5f, COR_TEXTO, 13, y, linha);
+            y -= 9;
+        }
         insertDataInDocument(contentStream, fontes.medium(), 7.5f, COR_TEXTO, 93, 61, familiaEntity.getCpfResponsavel());
         insertDataInDocument(contentStream, fontes.medium(), 7.5f, COR_TEXTO, 172, 61, familiaEntity.getTelefone());
+    }
+
+    private java.util.List<String> quebrarTexto(PDFont font, float fontSize, float larguraMaxima, String texto) throws IOException {
+        java.util.List<String> linhas = new java.util.ArrayList<>();
+        StringBuilder atual = new StringBuilder();
+        for (String palavra : texto.trim().split("\\s+")) {
+            String candidata = atual.length() == 0 ? palavra : atual + " " + palavra;
+            if (atual.length() > 0 && font.getStringWidth(candidata) / 1000 * fontSize > larguraMaxima) {
+                linhas.add(atual.toString());
+                atual = new StringBuilder(palavra);
+            } else {
+                atual = new StringBuilder(candidata);
+            }
+        }
+        linhas.add(atual.toString());
+        return linhas;
     }
 
     private void inserirBadgeMembros(PDPageContentStream contentStream, Fontes fontes, Integer quantidade) throws IOException {
