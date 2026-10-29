@@ -1,0 +1,94 @@
+name: Validating Tests and Build Docker
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão da imagem Docker (ex: 1.0, 1.1, 2.0)'
+        required: true
+        default: '1.0'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: familia_connect
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:4-management
+        env:
+          RABBITMQ_USER: guest
+          RABBITMQ_PASS: guest
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run tests with Maven
+        working-directory: familia-connect
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+          RABBITMQ_EXCHANGE: ${{ secrets.RABBITMQ_EXCHANGE }}
+          RABBITMQ_BINDING: ${{ secrets.RABBITMQ_BINDING }}
+          RABBITMQ_QUEUE: ${{ secrets.RABBITMQ_QUEUE }}
+          RABBITMQ_QUEUE_RESPOSTA: ${{ secrets.RABBITMQ_QUEUE_RESPOSTA }}
+          RABBITMQ_ROUTING_RESPOSTA: ${{ secrets.RABBITMQ_ROUTING_RESPOSTA }}
+        run: mvn -B -q clean test
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: tests
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Docker image
+        run: |
+          VERSION=${{ github.event.inputs.version }}
+          echo "Building image with tag ${VERSION}"
+          docker build -t miguelramoslima/familia-connect:${VERSION} .
+          docker push miguelramoslima/familia-connect:${VERSION}
+          docker tag miguelramoslima/familia-connect:${VERSION} miguelramoslima/familia-connect:latest
+          docker push miguelramoslima/familia-connect:latest
